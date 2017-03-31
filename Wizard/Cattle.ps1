@@ -144,16 +144,8 @@ $MyDefaults = @(
 
     [PSCustomObject] @{ Tag="TimeZone"; Name="Time Zone"; Value = ( [System.Timezone]::CurrentTimezone.StandardName ); ToolTip = "TimeZone"; },
     [PSCustomObject] @{ Tag="SystemLocale"; Name="SystemLocale"; Value = ( (Get-WinUserLanguageList).LanguageTag ); ToolTip = "System Locale"; },
-    [PSCustomObject] @{ Tag="IEHarden"; Name="Harden IE"; Value = ( 'false' ); ToolTip = "Harden IE for all users"; },
 
-    [PSCustomObject] @{ Tag="EnableTS"; Name="Enable Terminal Services"; Value = ( 'false' ); ToolTip = "Enable Terminal Services and open Firewall Port"; },
-    [PSCustomObject] @{ Tag="PSRemoting"; Name="Enable Powershell Remoting"; Value = ( 'true' ); ToolTip = "Enable PowerShell Remoting"; },
-    [PSCustomObject] @{ Tag="ExecutionPolicy"; Name="PowerShell Execution Policy"; Value = ( 'RemoteSigned' ); ToolTip = "Set-ExecutionPolicy for 64bit and 32bit"; },
-
-    [PSCustomObject] @{ Tag=""; Name=""; value = ''; tooltip = '' },
-    # [PSCustomObject] @{ Tag="Updates"; Name="Updates Directory"; Value = ''; ToolTip = "Directory containing Updates for Image"; },
-
-    [PSCustomObject] @{ Tag="AdditionalPS1"; Name="Additional PS1 Script to run"; Value = ( 'https://raw.githubusercontent.com/KuduApps/CustomPowershell/master/hello.ps1' ); ToolTip = "Additional Configuration Script to launch"; }
+    [PSCustomObject] @{ Tag="AdditionalPS1"; Name="Additional PS1 Script to run"; Value = ( 'https://raw.githubusercontent.com/keithga/CattleDisk/master/Scripts/Basic.ps1' ); ToolTip = "Additional Configuration Script to launch"; }
 )
 
 if ( $MyFields ) {
@@ -190,16 +182,17 @@ UNATTEND  {
         }
 
         COMPONENT Microsoft-Windows-IE-ESC { 
-            ELEMENT IEHardenAdmin (Get-PropValue 'IEHarden').ToString().TOLower()
-            ELEMENT IEHardenUser  (Get-PropValue 'IEHarden').ToString().TOLower()
+            ELEMENT IEHardenAdmin $true.ToString().TOLower()
+            ELEMENT IEHardenUser  $true.ToString().TOLower()
         } 
 
         COMPONENT Microsoft-Windows-IE-InternetExplorer {
             ELEMENT Home_Page "about:tab"
         }
         
+        <#
         COMPONENT Microsoft-Windows-TerminalServices-LocalSessionManager {
-            ELEMENT fDenyTSConnections (-not (get-PropValue 'EnableTS')).ToString().ToLower()
+            ELEMENT fDenyTSConnections $false.ToString().ToLower()
         }
 
         COMPONENT Microsoft-Windows-TerminalServices-RDP-WinStationExtensions {
@@ -215,6 +208,7 @@ UNATTEND  {
                 }
             }
         }
+        #>
 
     }
 
@@ -245,53 +239,6 @@ UNATTEND  {
 
             ELEMENT FirstLogonCommands {
 
-                $NewExecutionPolicy = $MyFields | where-object Tag -eq 'ExecutionPolicy' | Select-Object -ExpandProperty Value -first 1
-                if( $NewExecutionPolicy -in 'AllSigned','RemoteSigned','Unrestricted','Bypass' )
-                {
-                    write-verbose "Add PSRemoting"
-
-                    ELEMENT SynchronousCommand -TypeAdd -ForceNew {
-                        ELEMENT Description "Set powershell execution policy to remote signed (32-bit)"
-                        ELEMENT Order "3"
-                        ELEMENT CommandLine "reg.exe add HKLM\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell /v ExecutionPolicy /d $NewExecutionPolicy /f /reg:32"
-                        ELEMENT RequiresUserInput $true.Tostring().ToLower() 
-                    }
-
-                    ELEMENT SynchronousCommand -TypeAdd -ForceNew {
-                        ELEMENT Description "Set powershell execution policy to remote signed (64-bit)"
-                        ELEMENT Order "4"
-                        ELEMENT CommandLine "reg.exe add HKLM\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell /v ExecutionPolicy /d $NewExecutionPolicy /f /reg:64"
-                        ELEMENT RequiresUserInput $true.Tostring().ToLower() 
-                    }
-
-                }
-
-                if( $MyFields | where-object Tag -eq 'PSRemoting' | where-object value -eq 'true' )
-                {
-
-                    ELEMENT SynchronousCommand -TypeAdd -ForceNew {
-                        ELEMENT Description "Enable-PSRemoting"
-                        ELEMENT Order "5"
-                        ELEMENT CommandLine 'powershell.exe -command "echo ''Enable-PSRemoting''; Enable-PSRemoting -force"'
-                        ELEMENT RequiresUserInput $true.Tostring().ToLower() 
-                    }
-
-                    ELEMENT SynchronousCommand -TypeAdd -ForceNew {
-                        ELEMENT Description "set trustedhosts to ALL (less secure)"
-                        ELEMENT Order "6"
-                        ELEMENT CommandLine 'powershell.exe -command "echo ''set trustedhosts''; Set-Item wsman:localhost\client\trustedhosts -Value * -force"'
-                        ELEMENT RequiresUserInput $true.Tostring().ToLower() 
-                    }
-
-                    ELEMENT SynchronousCommand -TypeAdd -ForceNew {
-                        ELEMENT Description "winrm quick config"
-                        ELEMENT Order "7"
-                        ELEMENT CommandLine "cmd.exe /c winrm.cmd quickconfig -transport:HTTP -force"
-                        ELEMENT RequiresUserInput $true.Tostring().ToLower() 
-                    }
-
-                }
-
                 $AdditionalCmd = Get-PropValue 'AdditionalPS1'
                 if( $AdditionalCmd )
                 {
@@ -301,13 +248,6 @@ UNATTEND  {
                         ELEMENT CommandLine "powershell -executionpolicy RemoteSigned ""Start-Transcript; echo 'remote script'; iwr '$AdditionalCmd' -UseBasicParsing | iex"""
                         ELEMENT RequiresUserInput $true.Tostring().ToLower() 
                     }
-                }
-
-                ELEMENT SynchronousCommand -TypeAdd -ForceNew {
-                    ELEMENT Description "Finished"
-                    ELEMENT Order "999"
-                    ELEMENT CommandLine 'powershell.exe -command "echo ''reboot machine''; start-sleep 10; shutdown.exe -r -f -t 0"'
-                    ELEMENT RequiresUserInput $true.Tostring().ToLower() 
                 }
 
             }
@@ -433,9 +373,8 @@ if ( $VHDPath -or $HyperVName ) {
         VHDFile = $VHDPath
         Name = $ImageName
         Generation = $Generation
+        Packages = $Packages
     }
-    $Packages = Get-PropValue 'Updates' | ForEach-Object { get-childitem -Path $_ }
-    if ( $Packages ) { $ConvertWVArgs.add('Packages',$Packages) }
     Convert-WIMtoVHD @ConvertWVArgs
 
     if ( $HyperVName ) {
