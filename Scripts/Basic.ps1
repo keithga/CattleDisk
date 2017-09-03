@@ -13,6 +13,48 @@ param ( )
 $ErrorActionPreference = 'stop'
 $rebootrequested = $false
 
+#region .NET 3.5
+#######################################
+
+    Write-Host "Add .NET Framework 3.5"
+
+    if ( Get-WindowsOptionalFeature -online -FeatureName "netfx3" | where-object state -ne enabled ) {
+
+        $SxsPath = $null
+        $SxsPath = get-volume | foreach-object { "$($_.DriveLetter)`:\Sources\SXS" } | where-object { Test-Path $_}
+
+        if ( $SxsPath ) {
+            Enable-WindowsOptionalFeature -Online -FeatureName "NetFx3" -Source $SxsPath -LimitAccess
+        }
+        else {
+            Enable-WindowsOptionalFeature -Online -FeatureName "NetFx3"
+        }
+    }
+
+    if ( get-windowsfeature -Name Hyper-v |where-object InstallState -ne installed ) {
+
+        Write-Host "Install Hyper-V"
+        import-module servermanager | Out-Null
+        $rebootrequested = Install-WindowsFeature –Name Hyper-V -IncludeManagementTools | % RequiresReboot
+
+    }
+
+#endregion
+
+#region WIndows Update
+#######################################
+
+    Write-Verbose "prototype"
+
+    Install-Module PSWIndowsUpdate
+    Import-Module PSWIndowsUpdate 
+
+    Get-WUInstall -MicrosoftUpdate -AcceptAll 
+
+    # Just a single pass, good for cumulitiave updates...
+
+#endregion
+
 #region Password
 #######################################
 
@@ -100,6 +142,20 @@ else {
     # Disable IE HArdening
     Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A7-37EF-4b3f-8CFC-4F3A74704073}" -Name "IsInstalled" -Value 0
     Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A8-37EF-4b3f-8CFC-4F3A74704073}" -Name "IsInstalled" -Value 0
+
+    get-volume | Where-Object FileSystemLabel -EQ HDDScratch | foreach-object { net.exe share "scratch$=$($_.DriveLetter)`:\" /Grant:Administrators,Full /Unlimited }
+    get-volume | Where-Object FileSystemLabel -EQ HDDArchive | foreach-object { net.exe share "Archive$=$($_.DriveLetter)`:\" /Grant:Administrators,Full /Unlimited }
+
+    get-disk | where-object BusType -eq 'NVMe' | get-partition | get-volume | foreach-object { "$($_.DriveLetter)`:\" } |
+        ForEach-Object {
+            net share "Fast$=$_"  /Grant:Administrators,Full /Unlimited
+
+            $VHDPath = Join-Path $_ "Hyper-V\Virtual Hard Disks"
+            $VMPath = Join-Path $_ "Hyper-V"
+            new-item -ItemType Directory -Path $VMPath,$VHDPath -ErrorAction SilentlyContinue | Out-Null
+            Set-VMHost -VirtualHardDiskPath $VHDPath -VirtualMachinePath $VMPath
+
+        }
 
 }
 
