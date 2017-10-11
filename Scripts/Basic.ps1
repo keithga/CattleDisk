@@ -31,11 +31,13 @@ $rebootrequested = $false
         }
     }
 
-    if ( get-windowsfeature -Name Hyper-v |where-object InstallState -ne installed ) {
+    if ( get-WindowsOptionalFeature -online -FeatureName Microsoft-Hyper-V |where-object State -ne enabled ) {
 
         Write-Host "Install Hyper-V"
-        import-module servermanager | Out-Null
-        $rebootrequested = Install-WindowsFeature –Name Hyper-V -IncludeManagementTools | % RequiresReboot
+        # import-module servermanager | Out-Null
+        $result = Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All
+        $result | gm | Out-String | Write-Verbose
+        $result | fl * | Out-String -Width 200 | Write-Verbose
 
     }
 
