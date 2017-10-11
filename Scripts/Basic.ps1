@@ -37,14 +37,15 @@ $RestartsRequested = $null
 #region WIndows Update
 #######################################
 
-    Write-Verbose "prototype"
+    Write-Verbose "prototype, just a single pass..."
 
-    Install-Module PSWIndowsUpdate
+    Install-PackageProvider -Name NuGet -Force
+    Install-Module PSWIndowsUpdate -Force
     Import-Module PSWIndowsUpdate 
 
-    Get-WUInstall -MicrosoftUpdate -AcceptAll 
+    $results = Get-WUInstall -MicrosoftUpdate -AcceptAll -IgnoreReboot
 
-    # Just a single pass, good for cumulitiave updates...
+    $RestartsRequested = $results -match 'Reboot'
 
 #endregion
 
