@@ -8,38 +8,29 @@ Returns True if service need to be installed.
 #>
 
 [cmdletbinding()]
-param ( )
+param (
+    [string[]] $OSFeatures = @("netfx3","Microsoft-Hyper-V")
+    )
 
 $ErrorActionPreference = 'stop'
-$rebootrequested = $false
+$RestartsRequested = $null
 
-#region .NET 3.5
+#region Add Windows Features
 #######################################
 
-    Write-Host "Add .NET Framework 3.5"
+    Write-Verbose "Gather the local path"
 
-    if ( Get-WindowsOptionalFeature -online -FeatureName "netfx3" | where-object state -ne enabled ) {
+    $SxsPath = $null
+    $SxsPath = get-volume | foreach-object { "$($_.DriveLetter)`:\Sources\SXS" } | where-object { Test-Path $_}
 
-        $SxsPath = $null
-        $SxsPath = get-volume | foreach-object { "$($_.DriveLetter)`:\Sources\SXS" } | where-object { Test-Path $_}
-
-        if ( $SxsPath ) {
-            Enable-WindowsOptionalFeature -Online -FeatureName "NetFx3" -Source $SxsPath -LimitAccess
-        }
-        else {
-            Enable-WindowsOptionalFeature -Online -FeatureName "NetFx3"
-        }
-    }
-
-    if ( get-WindowsOptionalFeature -online -FeatureName Microsoft-Hyper-V |where-object State -ne enabled ) {
-
-        Write-Host "Install Hyper-V"
-        # import-module servermanager | Out-Null
-        $result = Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All
-        $result | gm | Out-String | Write-Verbose
-        $result | fl * | Out-String -Width 200 | Write-Verbose
-
-    }
+    Write-Verbose "Adding Features..."
+    $RestartsRequested = $OSFeatures | 
+        Where-Object { get-WindowsOptionalFeature -Online -FeatureName $_ | Where-Object State -NE Enabled } |
+        ForEach-Object { 
+            Write-Host "Add feature $_"
+            Enable-WindowsOptionalFeature -Online -FeatureName $_ -All -LimitAccess -Source $SxsPath -NoRestart 
+        } | 
+        Where-Object RestartNeeded -eq $True
 
 #endregion
 
@@ -120,7 +111,7 @@ $rebootrequested = $false
     if ($ComputerName)
     {
         rename-computer -newname $COmputerName
-        $rebootrequested = $true
+        $RestartsRequested = $true
     }
 
 
@@ -167,7 +158,7 @@ else {
 #region Cleanup
 #######################################
 
-if ( $rebootrequested ) {
+if ( $RestartsRequested ) {
 
         write-host "reboot requried!`n press enter to reboot!"
         read-host
