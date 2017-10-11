@@ -81,6 +81,12 @@ $RestartsRequested = $null
 #region Enable PS remoting
 #######################################
 
+    get-netconnectionprofile | 
+        Where-Object NetworkCategory -eq public | 
+        Where-Object  NDisphysicalMedium -in 0,14 | 
+        get-netadapter | 
+        Set-NetConnectionProfile -NetworkCategory Private
+
     Enable-PSRemoting -force
     Set-Item wsman:localhost\client\trustedhosts -Value * -force
     winrm  quickconfig -transport:HTTP -force
