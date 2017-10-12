@@ -83,8 +83,8 @@ $RestartsRequested = $null
 
     get-netconnectionprofile | 
         Where-Object NetworkCategory -eq public | 
-        Where-Object  NDisphysicalMedium -in 0,14 | 
         get-netadapter | 
+        Where-Object  NDisphysicalMedium -in 0,14 | 
         Set-NetConnectionProfile -NetworkCategory Private
 
     Enable-PSRemoting -force
