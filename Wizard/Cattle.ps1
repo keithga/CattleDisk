@@ -227,7 +227,7 @@ UNATTEND  {
             }
 
             ELEMENT AutoLogon {
-                ELEMENT LogonCount "1"
+                ELEMENT LogonCount "10"
                 ELEMENT UserName "Administrator"
                 ELEMENT Enabled "true"
                 PASSWORD "Password" (Get-PropValue 'AdministratorPassword')

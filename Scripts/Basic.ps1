@@ -1,8 +1,12 @@
 <#
  .SYNOPSIS
-Installation Check for Component
+Basic Machine Setup
+
 .DESCRIPTION
-Returns True if service need to be installed.
+Will perform the basic setup of a machine.
+
+Will open up ports and services for remote administration, but not before securing accounts.
+
 .NOTES
 
 #>
@@ -14,6 +18,97 @@ param (
 
 $ErrorActionPreference = 'stop'
 $RestartsRequested = $null
+
+
+#region Add Microsoft Account
+
+function Add-MicrosoftAccountToUser {
+    [cmdletbinding()]
+    param( $MicrosoftAccount, $User )
+
+    if ( -not ( Test-Path $env:SystemRoot\System32\PSExec.exe ) ) {
+        Invoke-WebRequest -Uri 'http://live.sysinternals.com/psexec.exe' $env:SystemRoot\System32\PSExec.exe
+    }
+
+    [scriptBlock]$CommandRun = { 
+
+        Write-Host "Hello World: $MicrosoftAccount $User"
+
+        Read-Host "Done"
+    }
+
+    $CommandRun.ToString()
+
+}
+
+#######################################
+
+function Add-MicrosoftAccountToUser {
+    [cmdletbinding()]
+    param( $MicrosoftAccount, $User )
+
+    if ( -not ( Test-Path $env:temp\PSExec.exe ) ) {
+        Invoke-WebRequest -Uri 'http://live.sysinternals.com/psexec.exe' -OutFile $env:temp\PSExec.exe
+    }
+
+    [scriptBlock]$CommandRun = { 
+
+        [cmdletbinding()]
+        param( $MicrosoftAccount, $User )
+
+        Start-Transcript -Path "c:\windows\log\MicrosoftAccount_$($User).log"
+        Write-Host "Hello World: $MicrosoftAccount $User"
+
+        $objUser = New-Object System.Security.Principal.NTAccount($User)
+        $strSID = $objUser.Translate([System.Security.Principal.SecurityIdentifier])
+        $c = New-Object 'byte[]' $strsid.BinaryLength
+        $strSID.GEtBinaryForm($c,0)
+
+        Stop-Transcript
+
+        start-sleep 1
+
+        exit
+
+        $FoundUser = $NULL
+        foreach ($user in get-childitem "HKLM:\Sam\Sam\Domains\Account\Users") { 
+            if ( $User.GetValue("V").length -gt 0 ) {
+                $v = $User.GetValue("V")
+                foreach ( $i in ($v.length-$c.Length)..0)  {
+                    if ((compare-object $c $v[$i..($i-1+$c.length)] -sync 0).length -eq 0) {
+                        $FoundUSer = $User
+                        break
+                    }
+                }
+            }
+        }
+
+        if ($FoundUser -is [object]) {
+            Write-Verbose "Found USer: $($FoundUSer.PSPAth) now write $MicrosoftAccount"
+
+            if ( $FoundUSer.GetValue("InternetUserName") -isnot [byte[]] ) {
+                Set-ItemProperty $FoundUser.PSPath "ForcePasswordReset"   ([byte[]](0,0,0,0))
+                Set-ItemProperty $FoundUser.PSPath "InternetUserName"     ([System.Text.Encoding]::UniCode.GetBytes($MicrosoftAccount))
+                Set-ItemProperty $FoundUser.PSPath "InternetProviderGUID" ([GUID]("d7f9888f-e3fc-49b0-9ea6-a85b5f392a4f")).TOByteArray()
+            }
+        }
+
+        Stop-Transcript
+    }
+
+    $tempfile = [System.IO.Path]::GetTempFileName() + '.ps1'
+    $Prefix + $CommandRun.ToString() | Out-File -Encoding ascii -FilePath $tempFile
+
+    write-verbose " Call: $tempfile -verbose -MicrosoftAccount '$Microsoftaccount' -User '$User'"
+    & $env:temp\PSExec.exe /AcceptEula -e -i -s Powershell.exe -noprofile -executionpolicy bypass -File $tempfile -verbose -MicrosoftAccount "$Microsoftaccount" -User "$User" 2> out-null
+
+    remove-item $tempFile -force   
+
+}
+
+#######################################
+
+#endregion 
 
 #region Add Windows Features
 #######################################
@@ -34,16 +129,18 @@ $RestartsRequested = $null
 
 #endregion
 
-#region WIndows Update
+#region Windows Update
 #######################################
 
     Write-Verbose "prototype, just a single pass..."
 
-    Install-PackageProvider -Name NuGet -Force
+    if ( -not ( get-packageprovider | ? Name -eq NuGet ) ) {
+        Install-PackageProvider -Name NuGet -Force
+    }
     Install-Module PSWIndowsUpdate -Force
     Import-Module PSWIndowsUpdate 
 
-    $results = Get-WUInstall -MicrosoftUpdate -AcceptAll -IgnoreReboot
+    $results = Get-WUInstall -MicrosoftUpdate -AcceptAll 
 
     $RestartsRequested = $results -match 'Reboot'
 
@@ -51,16 +148,90 @@ $RestartsRequested = $null
 
 #region Password
 #######################################
+#######################################
+#######################################
 
     if ( Get-WmiObject -Class Win32_UserAccount -filter "SID LIKE '%500' and Disabled='false'" ) {
         # local Administrator account is present *and* active
         write-host "`n`nchange the administrator password:"
         net user administrator *
+
+        Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\' -Name AutoAdminLogon -Value '0'
+        Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\' -Name DefaultPassword -Value ''
+
     }
+
+    #########################################################
+    #########################################################
+    ######
+    ###### Warning!!! Local Administrator password may not be
+    ###### secure. Do not open any ports, or enable remote 
+    ###### services BEFORE this point
+    #########################################################
+    #########################################################
 
 #endregion
 
+#region ComptuerName
+#######################################
+
+$ComputerName = read-Host "Computer Name:"
+if ($ComputerName)
+{
+    rename-computer -newname $COmputerName
+    $RestartsRequested = $true
+}
+
+#endregion
+
+#region Create Local Administrator Accounts
+#######################################
+
+write-host "`n`nComma Delimited List of User Accounts: (example: JohnDoe)"
+foreach ( $UserAccount in (read-Host "User Accounts:") -split ',' )
+{
+    if ( -not ( [string]::IsNullOrEmpty( $UserAccount ) ) ) 
+    {
+        net.exe user /add $UserAccount /FullName:"$UserAccount" /Expires:Never P@ssw0rd
+        get-wmiobject -Class Win32_UserAccount -Filter "name='$UserAccount'"  | swmi -Argument @{PasswordExpires = 0}
+        write-host "net.exe localgroup administrators /add $UserAccount"
+        net.exe localgroup administrators /add $UserAccount
+
+        if ( gwmi win32_operatingsystem | Where-Object ProductType -eq 1 ) {
+
+            write-host "`n`nMicrosoft Account: John.Doe@Hotmail.com"
+            $MicrosoftAccount = read-Host "MicrosoftAccount:"
+            if ( -not ( [string]::IsNullOrEmpty( $MicrosoftAccount ) ) ) 
+            {
+                Add-MicrosoftAccountToUser -MicrosoftAccount $MicrosoftAccount -User $UserAccount
+            }
+            else {
+                Write-Host "Enter Password:"
+                net.exe user $UserAccount *
+            }
+        }
+        else {
+            Write-Host "Enter Password:"
+            net.exe user $UserAccount *
+        }
+    }
+}
+
+if ( gwmi win32_operatingsystem | Where-Object ProductType -eq 1 ) {
+
+    Write-Verbose "Remove the local Administrator account if on Workstation..."
+    if (  get-localuser |? SID -notmatch '(500|501|503)$' |? Enabled -EQ $True ) {
+        Write-Verbose "There is at least one active account"
+        net user administrator /active:no
+    }
+}
+
+#endregion
+
+
 #region Enable Terminal Services
+#######################################
+#######################################
 #######################################
 
     set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
@@ -93,39 +264,12 @@ $RestartsRequested = $null
 
 #endregion
 
-#region Create Local Administrator Accounts
-#######################################
-
-    write-host "`n`nComma Delimited List of User Accounts: (example: JohnDoe)"
-    foreach ( $UserAccount in (read-Host "User Accounts:") -split ',' )
-    {
-        if ( -not ( [string]::IsNullOrEmpty( $UserAccount ) ) ) 
-        {
-            net.exe user /add $UserAccount /FullName:"$UserAccount" /Expires:Never P@ssw0rd
-            get-wmiobject -Class Win32_UserAccount -Filter "name='$UserAccount'"  | swmi -Argument @{PasswordExpires = 0}
-            write-host "net.exe localgroup administrators /add $UserAccount"
-            net.exe localgroup administrators /add $UserAccount
-            net.exe user $USerAccount *
-        }
-    }
-
-#endregion
-
-#region ComptuerName
-#######################################
-
-    $ComputerName = read-Host "Computer Name:"
-    if ($ComputerName)
-    {
-        rename-computer -newname $COmputerName
-        $RestartsRequested = $true
-    }
-
-
-#endregion
-
 #region Client vs Server
 #######################################
+
+<#
+
+# Punt this crap to the actual logged in user.
 
 if ( gwmi win32_operatingsystem | Where-Object ProductType -eq 1 ) {
     # Client
@@ -159,7 +303,7 @@ else {
 
 }
 
-
+#>
 #endregion
 
 #region Cleanup
@@ -167,9 +311,9 @@ else {
 
 if ( $RestartsRequested ) {
 
-        write-host "reboot requried!`n press enter to reboot!"
-        read-host
-        shutdown -r -f -t 0 
+    write-host "reboot requried!`n press enter to reboot!"
+    read-host
+    shutdown -r -f -t 0 
 
 }
 
