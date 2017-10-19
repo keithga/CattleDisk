@@ -9,17 +9,24 @@ Will open up ports and services for remote administration, but not before securi
 
 .NOTES
 
+    TODO:
+        Rip out server cfg below
+        Test Microsoft account
+        get system for pre-creating MicrosoftAccounts???
+
 #>
 
 [cmdletbinding()]
 param (
+    [switch] $SkipFeatures,
+    [switch] $SkipUpdate,
     [string[]] $OSFeatures = @("netfx3","Microsoft-Hyper-V")
     )
 
 #region Initial Setup
 
 $ErrorActionPreference = 'stop'
-$RestartsRequested = $null
+[bool] $RestartsRequested = $false
 
 if ( Test-Path 'c:\DO_NOT_RUN_MACHINE_SETUP.txt' ) { exit }
 
@@ -93,6 +100,8 @@ function Add-MicrosoftAccountToUser {
 #region Add Windows Features
 #######################################
 
+if ( -not $SkipFeatures ) {
+
     Write-Verbose "Gather the local path"
 
     $SxsPath = $null
@@ -104,8 +113,13 @@ function Add-MicrosoftAccountToUser {
         $FeatureArgs.Add( 'LimitAccess', $true )
     }
 
+    Write-Verbose 'remove Hyper-V if running within a HyperVisor'
+    if ( gwmi Win32_ComputerSystem | ? HyperVisorPresent -EQ 'True' ) {
+        $OSFeatures = $OSFeatures | ? { $_ -ne 'Microsoft-Hyper-V' }
+    }
+
     Write-Verbose "Adding Features..."
-    $RestartsRequested = $OSFeatures | 
+    $RestartsRequested += $OSFeatures | 
         Where-Object { get-WindowsOptionalFeature -Online -FeatureName $_ | Where-Object State -NE Enabled } |
         ForEach-Object { 
             Write-Host "Add feature $_"
@@ -113,10 +127,14 @@ function Add-MicrosoftAccountToUser {
         } | 
         Where-Object RestartNeeded -eq $True
 
+}
+
 #endregion
 
 #region Windows Update
 #######################################
+
+if ( -not $SkipUpdate ) {
 
     Write-Verbose "prototype, just a single pass..."
 
@@ -126,7 +144,9 @@ function Add-MicrosoftAccountToUser {
     Install-Module PSWIndowsUpdate -Force
     Import-Module PSWIndowsUpdate 
 
-    Get-WUInstall -MicrosoftUpdate -AcceptAll -AutoReboot
+    $RestartsRequested += Get-WUInstall -MicrosoftUpdate -AcceptAll -IgnoreReboot | ? { $_ -match 'Reboot' }
+
+}
 
 #endregion
 
@@ -148,8 +168,8 @@ function Add-MicrosoftAccountToUser {
     #########################################################
     #########################################################
     ######
-    ###### Warning!!! Local Administrator password may not be
-    ###### secure. Do not open any ports, or enable remote 
+    ###### Warning! Initial Administrator password may not be
+    ###### secure. So do not open any ports, or enable remote
     ###### services BEFORE this point
     #########################################################
     #########################################################
@@ -163,7 +183,7 @@ $ComputerName = read-Host "Computer Name:"
 if ($ComputerName)
 {
     rename-computer -newname $COmputerName
-    $RestartsRequested = $true
+    $RestartsRequested += $true
 }
 
 #endregion
@@ -172,6 +192,7 @@ if ($ComputerName)
 #######################################
 
 write-host "`n`nComma Delimited List of User Accounts: (example: JohnDoe)"
+
 foreach ( $UserAccount in (read-Host "User Accounts:") -split ',' )
 {
     if ( -not ( [string]::IsNullOrEmpty( $UserAccount ) ) ) 
@@ -295,9 +316,11 @@ else {
 
 if ( $RestartsRequested ) {
 
-    write-host "reboot requried!`n press enter to reboot!"
-    read-host
-    shutdown -r -f -t 0 
+    if( (new-object -com 'wscript.shell').Popup("The machine has installed several components that require a reboot.`r`nPress OK to reboot.`r`n`r`n...auto reboot in 60 seconds.",60,'Reboot required',1) -ne 2 ) {
+
+        shutdown -r -f -t 0
+
+    }
 
 }
 
