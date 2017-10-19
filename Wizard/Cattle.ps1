@@ -363,7 +363,7 @@ Write-Host "Working..."
 if ( $VHDPath -or $HyperVName ) {
 
     if ( $HyperVName ) {
-        $VHDPath = "$((get-vmHost).VirtualHardDiskPath)\$($Name).vhdx"
+        $VHDPath = "$((get-vmHost).VirtualHardDiskPath)\$($HyperVName).vhdx"
     }
 
     if (Test-Path $VHDPath ) { remove-item $VHdpath }
@@ -373,13 +373,17 @@ if ( $VHDPath -or $HyperVName ) {
         VHDFile = $VHDPath
         Name = $ImageName
         Generation = $Generation
-        Packages = $Packages
+        AdditionalContent = { 
+            param( $ApplyPath, $OSSrcPath, $AdditionalContentArgs ) 
+            new-item -ItemType directory $ApplyPath\Windows\Panther -force | out-null
+            copy-item $env:temp\NewISO\AutoUnattend.xml $ApplyPath\Windows\Panther\Unattend.xml 
+        }
     }
     Convert-WIMtoVHD @ConvertWVArgs
 
     if ( $HyperVName ) {
         Write-Verbose "start Hyper-V $HyperVName"
-        New-HyperVirtualMachine -Name $HyperVName -Startup -VHDPath $VHDPath
+        New-HyperVirtualMachine -Name $HyperVName -Startup -VHDPath $VHDPath -ProcessorCount 4 -EmptyCheckpoint
     }
 }
 elseif ( $ISOPath -or $USBPath ) {

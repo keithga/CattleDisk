@@ -16,30 +16,16 @@ param (
     [string[]] $OSFeatures = @("netfx3","Microsoft-Hyper-V")
     )
 
+#region Initial Setup
+
 $ErrorActionPreference = 'stop'
 $RestartsRequested = $null
 
+if ( Test-Path 'c:\DO_NOT_RUN_MACHINE_SETUP.txt' ) { exit }
+
+#endregion 
 
 #region Add Microsoft Account
-
-function Add-MicrosoftAccountToUser {
-    [cmdletbinding()]
-    param( $MicrosoftAccount, $User )
-
-    if ( -not ( Test-Path $env:SystemRoot\System32\PSExec.exe ) ) {
-        Invoke-WebRequest -Uri 'http://live.sysinternals.com/psexec.exe' $env:SystemRoot\System32\PSExec.exe
-    }
-
-    [scriptBlock]$CommandRun = { 
-
-        Write-Host "Hello World: $MicrosoftAccount $User"
-
-        Read-Host "Done"
-    }
-
-    $CommandRun.ToString()
-
-}
 
 #######################################
 
@@ -63,12 +49,6 @@ function Add-MicrosoftAccountToUser {
         $strSID = $objUser.Translate([System.Security.Principal.SecurityIdentifier])
         $c = New-Object 'byte[]' $strsid.BinaryLength
         $strSID.GEtBinaryForm($c,0)
-
-        Stop-Transcript
-
-        start-sleep 1
-
-        exit
 
         $FoundUser = $NULL
         foreach ($user in get-childitem "HKLM:\Sam\Sam\Domains\Account\Users") { 
@@ -116,14 +96,20 @@ function Add-MicrosoftAccountToUser {
     Write-Verbose "Gather the local path"
 
     $SxsPath = $null
-    $SxsPath = get-volume | foreach-object { "$($_.DriveLetter)`:\Sources\SXS" } | where-object { Test-Path $_}
+    $SxsPath = get-volume | foreach-object { "$($_.DriveLetter)`:\Sources\SXS" } | where-object { Test-Path $_ }
+
+    $FeatureArgs = @{}
+    if ( $SxsPath ) { 
+        $featureargs.Add( 'Source', $SxsPath )
+        $FeatureArgs.Add( 'LimitAccess', $true )
+    }
 
     Write-Verbose "Adding Features..."
     $RestartsRequested = $OSFeatures | 
         Where-Object { get-WindowsOptionalFeature -Online -FeatureName $_ | Where-Object State -NE Enabled } |
         ForEach-Object { 
             Write-Host "Add feature $_"
-            Enable-WindowsOptionalFeature -Online -FeatureName $_ -All -LimitAccess -Source $SxsPath -NoRestart 
+            Enable-WindowsOptionalFeature -Online -FeatureName $_ -All -NoRestart @FeatureArgs
         } | 
         Where-Object RestartNeeded -eq $True
 
@@ -140,9 +126,7 @@ function Add-MicrosoftAccountToUser {
     Install-Module PSWIndowsUpdate -Force
     Import-Module PSWIndowsUpdate 
 
-    $results = Get-WUInstall -MicrosoftUpdate -AcceptAll 
-
-    $RestartsRequested = $results -match 'Reboot'
+    Get-WUInstall -MicrosoftUpdate -AcceptAll -AutoReboot
 
 #endregion
 
