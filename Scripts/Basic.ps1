@@ -144,7 +144,9 @@ if ( -not $SkipUpdate ) {
     Install-Module PSWIndowsUpdate -Force
     Import-Module PSWIndowsUpdate 
 
-    $RestartsRequested += Get-WUInstall -MicrosoftUpdate -AcceptAll -IgnoreReboot | ? { $_ -match 'Reboot' }
+    if ( Get-WUInstall -MicrosoftUpdate -AcceptAll -IgnoreReboot | ? { $_ -match 'Reboot' } ) {
+        $RestartsRequested += $true
+    }
 
 }
 
