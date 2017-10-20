@@ -49,7 +49,7 @@ function Add-MicrosoftAccountToUser {
         [cmdletbinding()]
         param( $MicrosoftAccount, $User )
 
-        Start-Transcript -Path "c:\windows\log\MicrosoftAccount_$($User).log"
+        Start-Transcript -Path "c:\windows\logs\MicrosoftAccount_$($User).log"
         Write-Host "Hello World: $MicrosoftAccount $User"
 
         $objUser = New-Object System.Security.Principal.NTAccount($User)
@@ -193,15 +193,15 @@ Example:
 
 foreach ( $NewAccount in Request-UserNames @Users ) {
 
-    Write-Verbose "Create the account: $($NewAccounts.User)"
-    net.exe user /add $($NewAccounts.User) /FullName:"$($NewAccounts.User)" /Expires:Never P@ssw0rd
-    get-wmiobject -Class Win32_UserAccount -Filter "name='$($NewAccounts.User)'"  | swmi -Argument @{PasswordExpires = 0}
-    write-host "net.exe localgroup administrators /add $($NewAccounts.User)"
-    net.exe localgroup administrators /add $($NewAccounts.User)
+    Write-Verbose "Create the account: $($NewAccount.User)"
+    net.exe user /add $($NewAccount.User) /FullName:"$($NewAccount.User)" /Expires:Never P@ssw0rd
+    get-wmiobject -Class Win32_UserAccount -Filter "name='$($NewAccount.User)'"  | swmi -Argument @{PasswordExpires = 0}
+    write-host "net.exe localgroup administrators /add $($NewAccount.User)"
+    net.exe localgroup administrators /add $($NewAccount.User)
 
-    if ( $isServer -or [string]::IsNullOrEmpty($NewAccounts.MicrosoftAccount) ) {
+    if ( $isServer -or [string]::IsNullOrEmpty($NewAccount.MicrosoftAccount) ) {
         Write-Host "Enter Password:"
-        net.exe user$($NewAccounts.User) *
+        net.exe user$($NewAccount.User) *
     }
     else {
         Add-MicrosoftAccountToUser @NewAccount
