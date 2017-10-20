@@ -175,7 +175,7 @@ if ( -not $SkipUpdate ) {
 
 $Users = @{}
 if ( test-path $env:temp\accounts.txt ) { 
-    $Users = @{ UserNames = (type $env:temp\accounts.txt) -split ';' }
+    $Users = @{ UserNames = (type $env:temp\accounts.txt | ? { ! [string]::IsNullOrEmpty( $_ ) }) -split ';' }
     #XXX TBD del $env:temp\accounts.txt -Force 
 }
 
@@ -204,7 +204,7 @@ foreach ( $NewAccount in Request-UserNames @Users ) {
         net.exe user$($NewAccount.User) *
     }
     else {
-        Add-MicrosoftAccountToUser @NewAccount
+        Add-MicrosoftAccountToUser -MicrosoftAccount $NewAccount.MicrosoftAccount -User $NewAccount.User
     }
 }
 
