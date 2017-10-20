@@ -175,7 +175,7 @@ if ( -not $SkipUpdate ) {
 
 $Users = @{}
 if ( test-path $env:temp\accounts.txt ) { 
-    $Users = @{ UserNames = (type $env:temp\accounts.txt) }
+    $Users = @{ UserNames = (type $env:temp\accounts.txt) -split ';' }
     #XXX TBD del $env:temp\accounts.txt -Force 
 }
 
@@ -191,8 +191,6 @@ Example:
     SteveB,SteveB@Hotmail.com
 "@
 
-$NewAccounts = 
-
 foreach ( $NewAccount in Request-UserNames @Users ) {
 
     Write-Verbose "Create the account: $($NewAccounts.User)"
@@ -203,7 +201,7 @@ foreach ( $NewAccount in Request-UserNames @Users ) {
 
     if ( $isServer -or [string]::IsNullOrEmpty($NewAccounts.MicrosoftAccount) ) {
         Write-Host "Enter Password:"
-        net.exe user $UserAccount *
+        net.exe user$($NewAccounts.User) *
     }
     else {
         Add-MicrosoftAccountToUser @NewAccount
