@@ -11,8 +11,6 @@ Will open up ports and services for remote administration, but not before securi
 
     TODO:
         Rip out server cfg below
-        Test Microsoft account
-        get system for pre-creating MicrosoftAccounts???
 
 #>
 
@@ -25,14 +23,16 @@ param (
 
 #region Initial Setup
 
+if ( Test-Path 'c:\Pause.txt' ) { exit }
+
+$Accounts = $null
 $ErrorActionPreference = 'stop'
 [bool] $RestartsRequested = $false
-
-if ( Test-Path 'c:\DO_NOT_RUN_MACHINE_SETUP.txt' ) { exit }
+$isServer = !( gwmi win32_operatingsystem | Where-Object ProductType -eq 1 )
 
 #endregion 
 
-#region Add Microsoft Account
+#region Account Support Functions 
 
 #######################################
 
@@ -87,11 +87,31 @@ function Add-MicrosoftAccountToUser {
     $Prefix + $CommandRun.ToString() | Out-File -Encoding ascii -FilePath $tempFile
 
     write-verbose " Call: $tempfile -verbose -MicrosoftAccount '$Microsoftaccount' -User '$User'"
+    $local:ErrorActionPreference = 'continue'
     & $env:temp\PSExec.exe /AcceptEula -e -i -s Powershell.exe -noprofile -executionpolicy bypass -File $tempfile -verbose -MicrosoftAccount "$Microsoftaccount" -User "$User" 2> out-null
 
     remove-item $tempFile -force   
 
 }
+
+function Request-UserNames { 
+    [cmdletbinding(SupportsShouldProcess=$True,ConfirmImpact='high')]
+    param ( [parameter(Mandatory=$true,HelpMessage="Username,email@MicrosoftAccount.com")] [string[]] $UserNames ) 
+
+    $OutList = $UserNames | 
+        ForEach-Object {
+            $userObj = $_ -split ','
+            [pscustomobject] @{ User = $UserObj[0]; MicrosoftAccount = $UserObj[1] }
+        }
+
+    if( $pscmdlet.ShouldProcess($env:computername,"Create Accounts `r`n`r`n"+ ($OutList | out-string) ) ) 
+    {
+        $OutList | Write-Output
+        return
+    }
+    Request-USerNames | write-output
+}
+
 
 #######################################
 
@@ -144,120 +164,92 @@ if ( -not $SkipUpdate ) {
     Install-Module PSWIndowsUpdate -Force
     Import-Module PSWIndowsUpdate 
 
-    if ( Get-WUInstall -MicrosoftUpdate -AcceptAll -IgnoreReboot | ? { $_ -match 'Reboot' } ) {
-        $RestartsRequested += $true
-    }
+    $RestartsRequested += !!( Get-WUInstall -MicrosoftUpdate -AcceptAll -IgnoreReboot | ? { $_ -match 'Reboot' } )
 
 }
 
 #endregion
 
-#region Password
-#######################################
-#######################################
+#region Create Local User Accounts
 #######################################
 
-    if ( Get-WmiObject -Class Win32_UserAccount -filter "SID LIKE '%500' and Disabled='false'" ) {
-        # local Administrator account is present *and* active
-        write-host "`n`nchange the administrator password:"
-        net user administrator *
-
-        Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\' -Name AutoAdminLogon -Value '0'
-        Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\' -Name DefaultPassword -Value ''
-
-    }
-
-    #########################################################
-    #########################################################
-    ######
-    ###### Warning! Initial Administrator password may not be
-    ###### secure. So do not open any ports, or enable remote
-    ###### services BEFORE this point
-    #########################################################
-    #########################################################
-
-#endregion
-
-#region ComptuerName
-#######################################
-
-$ComputerName = read-Host "Computer Name:"
-if ($ComputerName)
-{
-    rename-computer -newname $COmputerName
-    $RestartsRequested += $true
+$Users = @{}
+if ( test-path $env:temp\accounts.txt ) { 
+    $Users = @{ UserNames = (type $env:temp\accounts.txt) }
+    #XXX TBD del $env:temp\accounts.txt -Force 
 }
 
-#endregion
+write-host ( '@' * 80 )
+write-host ( '@' * 80 )
 
-#region Create Local Administrator Accounts
-#######################################
+write-host @"
+please enter a colection of users names:
+    UserID,EmailAddress
 
-write-host "`n`nComma Delimited List of User Accounts: (example: JohnDoe)"
+Example:
+    BillG,BillG@hotmail.com
+    SteveB,SteveB@Hotmail.com
+"@
 
-foreach ( $UserAccount in (read-Host "User Accounts:") -split ',' )
-{
-    if ( -not ( [string]::IsNullOrEmpty( $UserAccount ) ) ) 
-    {
-        net.exe user /add $UserAccount /FullName:"$UserAccount" /Expires:Never P@ssw0rd
-        get-wmiobject -Class Win32_UserAccount -Filter "name='$UserAccount'"  | swmi -Argument @{PasswordExpires = 0}
-        write-host "net.exe localgroup administrators /add $UserAccount"
-        net.exe localgroup administrators /add $UserAccount
+$NewAccounts = 
 
-        if ( gwmi win32_operatingsystem | Where-Object ProductType -eq 1 ) {
+foreach ( $NewAccount in Request-UserNames @Users ) {
 
-            write-host "`n`nMicrosoft Account: John.Doe@Hotmail.com"
-            $MicrosoftAccount = read-Host "MicrosoftAccount:"
-            if ( -not ( [string]::IsNullOrEmpty( $MicrosoftAccount ) ) ) 
-            {
-                Add-MicrosoftAccountToUser -MicrosoftAccount $MicrosoftAccount -User $UserAccount
-            }
-            else {
-                Write-Host "Enter Password:"
-                net.exe user $UserAccount *
-            }
-        }
-        else {
-            Write-Host "Enter Password:"
-            net.exe user $UserAccount *
-        }
+    Write-Verbose "Create the account: $($NewAccounts.User)"
+    net.exe user /add $($NewAccounts.User) /FullName:"$($NewAccounts.User)" /Expires:Never P@ssw0rd
+    get-wmiobject -Class Win32_UserAccount -Filter "name='$($NewAccounts.User)'"  | swmi -Argument @{PasswordExpires = 0}
+    write-host "net.exe localgroup administrators /add $($NewAccounts.User)"
+    net.exe localgroup administrators /add $($NewAccounts.User)
+
+    if ( $isServer -or [string]::IsNullOrEmpty($NewAccounts.MicrosoftAccount) ) {
+        Write-Host "Enter Password:"
+        net.exe user $UserAccount *
+    }
+    else {
+        Add-MicrosoftAccountToUser @NewAccount
     }
 }
 
-if ( gwmi win32_operatingsystem | Where-Object ProductType -eq 1 ) {
+#endregion
 
+#region Secure Local Administrator Account
+#######################################
+
+if ( ! $ISServer ) {
     Write-Verbose "Remove the local Administrator account if on Workstation..."
     if (  get-localuser |? SID -notmatch '(500|501|503)$' |? Enabled -EQ $True ) {
-        Write-Verbose "There is at least one active account"
+        Write-Verbose "There is at least one active account. So..."
         net user administrator /active:no
     }
 }
 
+if ( Get-WmiObject -Class Win32_UserAccount -filter "SID LIKE '%500' and Disabled='false'" ) {
+    # local Administrator account is present *and* active
+    write-host "`n`nchange the administrator password:"
+    net user administrator *
+}
+
+Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\' -Name AutoAdminLogon -Value '0'
+Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\' -Name DefaultPassword -Value ''
+
 #endregion
 
+#######################################
+####   SECURED!
+#######################################
 
-#region Enable Terminal Services
+#region Enable Remote Services
 #######################################
-#######################################
-#######################################
+
+    Write-Verbose "Warning: Some of these services may not be avaiable on WKS until the 1st logon."
 
     set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
     set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fSingleSessionPerUser" -Value 1
     netsh.exe advfirewall firewall set rule group="remote desktop" new enable=Yes
 
-#endregion
-
-#region Set Powershell Execution Policy
-#######################################
-
     Get-ExecutionPolicy -list | out-string | Write-Verbose
     Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Force -ErrorAction SilentlyContinue
     c:\windows\sysWOW64\WindowsPowerShell\v1.0\powershell.exe -Command "Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Force -ErrorAction SilentlyContinue"
-
-#endregion
-
-#region Enable PS remoting
-#######################################
 
     get-netconnectionprofile | 
         Where-Object NetworkCategory -eq public | 
@@ -277,6 +269,16 @@ if ( gwmi win32_operatingsystem | Where-Object ProductType -eq 1 ) {
 <#
 
 # Punt this crap to the actual logged in user.
+
+$ComputerName = read-Host "Computer Name:"
+if ($ComputerName)
+{
+    rename-computer -newname $ComputerName
+    $RestartsRequested += $true
+}
+
+
+
 
 if ( gwmi win32_operatingsystem | Where-Object ProductType -eq 1 ) {
     # Client
@@ -317,13 +319,9 @@ else {
 #######################################
 
 if ( $RestartsRequested ) {
-
-    if( (new-object -com 'wscript.shell').Popup("The machine has installed several components that require a reboot.`r`nPress OK to reboot.`r`n`r`n...auto reboot in 60 seconds.",60,'Reboot required',1) -ne 2 ) {
-
+    if( (new-object -com 'wscript.shell').Popup("The machine has installed several components that require a reboot.`r`nPress OK to reboot.`r`n`r`n...auto reboot in 20 seconds.",20,'Reboot required',1) -ne 2 ) {
         shutdown -r -f -t 0
-
     }
-
 }
 
 #endregion

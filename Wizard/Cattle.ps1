@@ -146,6 +146,7 @@ $MyDefaults = @(
     [PSCustomObject] @{ Tag="SystemLocale"; Name="SystemLocale"; Value = ( (Get-WinUserLanguageList).LanguageTag ); ToolTip = "System Locale"; },
 
     [PSCustomObject] @{ Tag="AdditionalPS1"; Name="Additional PS1 Script to run"; Value = ( 'https://raw.githubusercontent.com/keithga/CattleDisk/master/Scripts/Basic.ps1' ); ToolTip = "Additional Configuration Script to launch"; }
+    [PSCustomObject] @{ Tag="UserAccounts"; Name="Local Admin Accounts"; Value = 'user,email;user,email'; ToolTip = "USerName,MicrosoftAccount;username,microsoftacount"; }
 )
 
 if ( $MyFields ) {
@@ -189,26 +190,6 @@ UNATTEND  {
         COMPONENT Microsoft-Windows-IE-InternetExplorer {
             ELEMENT Home_Page "about:tab"
         }
-        
-        <#
-        COMPONENT Microsoft-Windows-TerminalServices-LocalSessionManager {
-            ELEMENT fDenyTSConnections $false.ToString().ToLower()
-        }
-
-        COMPONENT Microsoft-Windows-TerminalServices-RDP-WinStationExtensions {
-            ELEMENT UserAuthentication '0'
-        }
-
-        COMPONENT Networking-MPSSVC-Svc {
-            ELEMENT FirewallGroups {
-                ELEMENT FirewallGroup -TypeAdd -Namespace 'RemoteDesktop' {
-                    ELEMENT Active $True.ToString().ToLower()
-                    ELEMENT Profile 'all'
-                    ELEMENT Group '@FirewallAPI.dll,-28752'
-                }
-            }
-        }
-        #>
 
     }
 
@@ -227,7 +208,7 @@ UNATTEND  {
             }
 
             ELEMENT AutoLogon {
-                ELEMENT LogonCount "10"
+                ELEMENT LogonCount "1"
                 ELEMENT UserName "Administrator"
                 ELEMENT Enabled "true"
                 PASSWORD "Password" (Get-PropValue 'AdministratorPassword')
@@ -238,6 +219,17 @@ UNATTEND  {
             }
 
             ELEMENT FirstLogonCommands {
+
+                $AdditionalCmd = Get-PropValue 'AdditionalPS1'
+                if( $AdditionalCmd )
+                {
+                    ELEMENT SynchronousCommand -TypeAdd -ForceNew {
+                        ELEMENT Description "Create User Accounts"
+                        ELEMENT Order "2"
+                        ELEMENT CommandLine "powershell ""'$UserNames' | out-file -encoding ascii `$env:temp\accounts.txt"""
+                        ELEMENT RequiresUserInput $true.Tostring().ToLower() 
+                    } 
+                }
 
                 $AdditionalCmd = Get-PropValue 'AdditionalPS1'
                 if( $AdditionalCmd )
