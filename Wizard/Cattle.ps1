@@ -93,43 +93,47 @@ if ( -not ( Test-Path $wimimage ) ) { throw "missing WIM file: $WimImage" }
 #region get-wimdata
 ###########################################################
 
-$Host.UI.RawUI.WindowTitle = "WIM Data"
+if ( $VHDPath -or $HyperVName ) {
 
-$ImageData = Get-WindowsImage -ImagePath $WimImage
+    $Host.UI.RawUI.WindowTitle = "WIM Data"
 
-if ( $ImageData.Count -eq 0 ) {
-    throw "missing ImageData $WimImage"
-}
-elseif ( $ImageData.Count -eq 1 ) {
-    $ImageName = $ImageData | Select-Object -First 1 -ExpandProperty ImageName
-}
-elseif ( $index -and ( $ImageData | Where-Object ImageIndex -eq $Index ) ) {
-    Write-Host "Match Index $Name"
-    $ImageName = $ImageData | Where-Object ImageIndex -Match $Index | Select-Object -ExpandProperty ImageName
-}
-elseif ( $Name -and ( $ImageData | Where-Object ImageName -match $Name ) ) {
-    Write-Host "Match Name $Name"
-    $ImageName = $ImageData | Where-Object ImageName -match $Name | Select-Object -ExpandProperty ImageName
-}
-else {
+    $ImageData = Get-WindowsImage -ImagePath $WimImage
 
-    $Host.UI.RawUI.WindowTitle = "Image-Index"
-    Clear-Host
-    Write-Host @"
+    if ( $ImageData.Count -eq 0 ) {
+        throw "missing ImageData $WimImage"
+    }
+    elseif ( $ImageData.Count -eq 1 ) {
+        $ImageName = $ImageData | Select-Object -First 1 -ExpandProperty ImageName
+    }
+    elseif ( $index -and ( $ImageData | Where-Object ImageIndex -eq $Index ) ) {
+        Write-Host "Match Index $Name"
+        $ImageName = $ImageData | Where-Object ImageIndex -Match $Index | Select-Object -ExpandProperty ImageName
+    }
+    elseif ( $Name -and ( $ImageData | Where-Object ImageName -match $Name ) ) {
+        Write-Host "Match Name $Name"
+        $ImageName = $ImageData | Where-Object ImageName -match $Name | Select-Object -ExpandProperty ImageName
+    }
+    else {
 
-    Select Image Name:
+        $Host.UI.RawUI.WindowTitle = "Image-Index"
+        Clear-Host
+        Write-Host @"
+
+        Select Image Name:
 
 "@
 
-    $ImageName = get-windowsimage -ImagePath $WimImage | 
-        Select-Object -ExpandProperty ImageName | 
-        out-GridView -OutputMode Single
+        $ImageName = get-windowsimage -ImagePath $WimImage | 
+            Select-Object -ExpandProperty ImageName | 
+            out-GridView -OutputMode Single
 
-    if ( -not $ImageName ) { throw "Missing selected image" }
+        if ( -not $ImageName ) { throw "Missing selected image" }
+
+    }
+
+    write-host "ImagePath: $ImagePath `r`nImageName: $ImageName"
 
 }
-
-write-host "ImagePath: $ImagePath `r`nImageName: $ImageName"
 
 #endregion
 

@@ -139,13 +139,13 @@ if ( -not $SkipFeatures ) {
     }
 
     Write-Verbose "Adding Features..."
-    $RestartsRequested += $OSFeatures | 
+    $RestartsRequested += !!( $OSFeatures | 
         Where-Object { get-WindowsOptionalFeature -Online -FeatureName $_ | Where-Object State -NE Enabled } |
         ForEach-Object { 
             Write-Host "Add feature $_"
             Enable-WindowsOptionalFeature -Online -FeatureName $_ -All -NoRestart @FeatureArgs
         } | 
-        Where-Object RestartNeeded -eq $True
+        Where-Object RestartNeeded -eq $True )
 
 }
 
