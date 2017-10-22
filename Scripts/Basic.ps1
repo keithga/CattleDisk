@@ -175,7 +175,7 @@ if ( -not $SkipUpdate ) {
 
 $Users = @{}
 if ( test-path $env:temp\accounts.txt ) { 
-    $Users = @{ UserNames = (type $env:temp\accounts.txt | ? { ! [string]::IsNullOrEmpty( $_ ) }) -split ';' }
+    $Users = @{ Confirm = $true; UserNames = (type $env:temp\accounts.txt | ? { ! [string]::IsNullOrEmpty( $_ ) }) -split ';' }
     #XXX TBD del $env:temp\accounts.txt -Force 
 }
 
@@ -261,56 +261,29 @@ Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlo
 
 #endregion
 
-#region Client vs Server
+#region Remaining Tasks...
 #######################################
 
-<#
+$TODO = [Environment]::GetFolderPath("CommonDesktopDirectory") + "\TODO.txt"
 
-# Punt this crap to the actual logged in user.
+@"
 
-$ComputerName = read-Host "Computer Name:"
-if ($ComputerName)
-{
-    rename-computer -newname $ComputerName
-    $RestartsRequested += $true
-}
+# Rename the computer 
+Rename-Computer -NewName Pickett
 
+<# 
+Remaining Tasks for this machine:
 
 
-
-if ( gwmi win32_operatingsystem | Where-Object ProductType -eq 1 ) {
-    # Client
-
-}
-else {
-
-    # Server
-    reg.exe add "hklm\SOFTWARE\Policies\Microsoft\Windows NT\Reliability" /v ShutdownReasonOn /t REG_DWORD /d 0x00000000 /f
-
-    netsh.exe advfirewall firewall set rule name="File and Printer Sharing (SMB-In)" dir=in profile=any new enable=yes
-    Get-Disk | Where-Object operationalstatus -ne Online | set-Disk -IsOffline $False
-
-    # Disable IE HArdening
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A7-37EF-4b3f-8CFC-4F3A74704073}" -Name "IsInstalled" -Value 0
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A8-37EF-4b3f-8CFC-4F3A74704073}" -Name "IsInstalled" -Value 0
-
-    get-volume | Where-Object FileSystemLabel -EQ HDDScratch | foreach-object { net.exe share "scratch$=$($_.DriveLetter)`:\" /Grant:Administrators,Full /Unlimited }
-    get-volume | Where-Object FileSystemLabel -EQ HDDArchive | foreach-object { net.exe share "Archive$=$($_.DriveLetter)`:\" /Grant:Administrators,Full /Unlimited }
-
-    get-disk | where-object BusType -eq 'NVMe' | get-partition | get-volume | foreach-object { "$($_.DriveLetter)`:\" } |
-        ForEach-Object {
-            net share "Fast$=$_"  /Grant:Administrators,Full /Unlimited
-
-            $VHDPath = Join-Path $_ "Hyper-V\Virtual Hard Disks"
-            $VMPath = Join-Path $_ "Hyper-V"
-            new-item -ItemType Directory -Path $VMPath,$VHDPath -ErrorAction SilentlyContinue | Out-Null
-            Set-VMHost -VirtualHardDiskPath $VHDPath -VirtualMachinePath $VMPath
-
-        }
-
-}
-
+* Join to a Domain
+* Personal Customizations
+* Applications
+* More
 #>
+"@ | Out-File -FilePath $TODO
+
+icacls.exe "$TODO" /grant "Authenticated Users:(F)" 
+
 #endregion
 
 #region Cleanup

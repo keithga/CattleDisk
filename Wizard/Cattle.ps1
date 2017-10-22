@@ -220,9 +220,8 @@ UNATTEND  {
 
             ELEMENT FirstLogonCommands {
 
-                $AdditionalCmd = Get-PropValue 'AdditionalPS1'
-                if( $AdditionalCmd )
-                {
+                $UserNames = Get-PropValue 'UserAccounts'
+                if( $UserNames ) {
                     ELEMENT SynchronousCommand -TypeAdd -ForceNew {
                         ELEMENT Description "Create User Accounts"
                         ELEMENT Order "2"
@@ -232,8 +231,7 @@ UNATTEND  {
                 }
 
                 $AdditionalCmd = Get-PropValue 'AdditionalPS1'
-                if( $AdditionalCmd )
-                {
+                if( $AdditionalCmd ) {
                     ELEMENT SynchronousCommand -TypeAdd -ForceNew {
                         ELEMENT Description "Run Additional Commands"
                         ELEMENT Order "8"
