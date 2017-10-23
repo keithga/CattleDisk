@@ -175,7 +175,7 @@ if ( -not $SkipUpdate ) {
 
 $Users = @{}
 if ( test-path $env:temp\accounts.txt ) { 
-    $Users = @{ Confirm = $true; UserNames = (type $env:temp\accounts.txt | ? { ! [string]::IsNullOrEmpty( $_ ) }) -split ';' }
+    $Users = @{ Confirm = $false; UserNames = (type $env:temp\accounts.txt | ? { ! [string]::IsNullOrEmpty( $_ ) }) -split ';' }
     #XXX TBD del $env:temp\accounts.txt -Force 
 }
 
