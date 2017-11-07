@@ -200,8 +200,8 @@ foreach ( $NewAccount in Request-UserNames @Users ) {
     net.exe localgroup administrators /add $($NewAccount.User)
 
     if ( $isServer -or [string]::IsNullOrEmpty($NewAccount.MicrosoftAccount) ) {
-        Write-Host "Enter Password:"
-        net.exe user$($NewAccount.User) *
+        Write-Host "Enter Password for account $($NewAccount.User) :"
+        net.exe user $($NewAccount.User) *
     }
     else {
         Add-MicrosoftAccountToUser -MicrosoftAccount $NewAccount.MicrosoftAccount -User $NewAccount.User
@@ -213,7 +213,7 @@ foreach ( $NewAccount in Request-UserNames @Users ) {
 #region Secure Local Administrator Account
 #######################################
 
-if ( ! $ISServer ) {
+if ( !$isServer ) {
     Write-Verbose "Remove the local Administrator account if on Workstation..."
     if (  get-localuser |? SID -notmatch '(500|501|503)$' |? Enabled -EQ $True ) {
         Write-Verbose "There is at least one active account. So..."
@@ -221,7 +221,7 @@ if ( ! $ISServer ) {
     }
 }
 
-if ( Get-WmiObject -Class Win32_UserAccount -filter "SID LIKE '%500' and Disabled='false'" ) {
+if (  get-localuser |? SID -match '500$' |? Enabled -EQ $True ) {
     # local Administrator account is present *and* active
     write-host "`n`nchange the administrator password:"
     net user administrator *
