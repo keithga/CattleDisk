@@ -204,7 +204,7 @@ UNATTEND  {
                 ELEMENT NetworkLocation "Other"
                 ELEMENT ProtectYourPC "1"
                 ELEMENT HideEULAPage $True.ToString().ToLower()
-                ELEMENT HideOnlineAccountScreens $True.ToString().ToLower()
+                ELEMENT SkipMachineOOBE $True.ToString().ToLower()
 
                 ELEMENT HideWirelessSetupInOOBE $True.ToString().ToLower()
                 ELEMENT HideLocalAccountScreen $True.ToString().ToLower()
