@@ -195,6 +195,16 @@ UNATTEND  {
             ELEMENT Home_Page "about:tab"
         }
 
+        COMPONENT Microsoft-Windows-Deployment {
+            ELEMENT RunSynchronous {
+                ELEMENT RunSynchronousCommand -TypeAdd -ForceNew {
+                    ELEMENT Description "Silence is Golden"
+                    ELEMENT Order '1'
+                    Element Path 'reg.exe add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE /v DisableVoice /t REG_DWORD /d 1'
+                }
+            }
+        }
+
     }
 
     write-verbose "OOBESystem"
@@ -205,7 +215,7 @@ UNATTEND  {
                 ELEMENT ProtectYourPC "1"
                 ELEMENT HideEULAPage $True.ToString().ToLower()
                 ELEMENT SkipMachineOOBE $True.ToString().ToLower()
-
+                
                 ELEMENT HideWirelessSetupInOOBE $True.ToString().ToLower()
                 ELEMENT HideLocalAccountScreen $True.ToString().ToLower()
                 ELEMENT HideOnlineAccountScreens $True.ToString().ToLower()
@@ -223,6 +233,13 @@ UNATTEND  {
             }
 
             ELEMENT FirstLogonCommands {
+
+                ELEMENT SynchronousCommand -TypeAdd -ForceNew {
+                    ELEMENT Description "Restore Cortana"
+                    ELEMENT Order "1"
+                    ELEMENT CommandLine "reg.exe delete HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE /v DisableVoice"
+                    ELEMENT RequiresUserInput $false.Tostring().ToLower() 
+                } 
 
                 $UserNames = Get-PropValue 'UserAccounts'
                 if( $UserNames ) {
@@ -278,6 +295,13 @@ UNATTEND  {
                         ELEMENT Key "12345-12345-12345-12345-12345"
                         ELEMENT WillShowUI "OnError" 
                     }
+                }
+            }
+            ELEMENT RunSynchronous {
+                ELEMENT RunSynchronousCommand -TypeAdd -ForceNew {
+                    ELEMENT Description "Prep machine for Bitlocker."
+                    ELEMENT Order "1"
+                    ELEMENT Path "cmd.exe /c echo XXX - TBD - Future - Use VBScript to prompt user for confirmation of Disk(0) wipe with, Bitlocker Pre-Provisioning."
                 }
             }
         }
