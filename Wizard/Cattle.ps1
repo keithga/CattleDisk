@@ -200,7 +200,14 @@ UNATTEND  {
                 ELEMENT RunSynchronousCommand -TypeAdd -ForceNew {
                     ELEMENT Description "Silence is Golden"
                     ELEMENT Order '1'
-                    Element Path 'reg.exe add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE /v DisableVoice /t REG_DWORD /d 1'
+                    Element Path 'reg.exe add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE /v DisableVoice /t REG_DWORD /d 1 /f'
+                }
+            }
+            ELEMENT RunSynchronous {
+                ELEMENT RunSynchronousCommand -TypeAdd -ForceNew {
+                    ELEMENT Description "No candy Crush - Only works on Enterprise"
+                    ELEMENT Order '2'
+                    Element Path 'reg.exe add HKLM\Software\Policies\Microsoft\Windows\CloudContent /v DisableWindowsConsumerFeatures /t REG_DWORD /d 1 /f'
                 }
             }
         }
@@ -237,7 +244,7 @@ UNATTEND  {
                 ELEMENT SynchronousCommand -TypeAdd -ForceNew {
                     ELEMENT Description "Restore Cortana"
                     ELEMENT Order "1"
-                    ELEMENT CommandLine "reg.exe delete HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE /v DisableVoice"
+                    ELEMENT CommandLine "reg.exe delete HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE /v DisableVoice /f"
                     ELEMENT RequiresUserInput $false.Tostring().ToLower() 
                 } 
 

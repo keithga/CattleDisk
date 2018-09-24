@@ -156,7 +156,7 @@ if ( -not $SkipFeatures ) {
 
 if ( -not $SkipUpdate ) {
 
-    Write-Verbose "prototype, just a single pass..."
+    Write-host "Single Pass Windows update (Prototype)"
 
     if ( -not ( get-packageprovider | ? Name -eq NuGet ) ) {
         Install-PackageProvider -Name NuGet -Force
@@ -173,12 +173,6 @@ if ( -not $SkipUpdate ) {
 #region Create Local User Accounts
 #######################################
 
-$Users = @{}
-if ( test-path $env:temp\accounts.txt ) { 
-    $Users = @{ Confirm = $false; UserNames = (type $env:temp\accounts.txt | ? { ! [string]::IsNullOrEmpty( $_ ) }) -split ';' }
-    #XXX TBD del $env:temp\accounts.txt -Force 
-}
-
 write-host ( '@' * 80 )
 write-host ( '@' * 80 )
 
@@ -191,21 +185,31 @@ Example:
     SteveB,SteveB@Hotmail.com
 "@
 
-foreach ( $NewAccount in Request-UserNames @Users ) {
+$Users = @{}
+if ( -not ( gwmi Win32_ComputerSystem | ? PartOfDomain -EQ 'True' ) ) { 
 
-    Write-Verbose "Create the account: $($NewAccount.User)"
-    net.exe user /add $($NewAccount.User) /FullName:"$($NewAccount.User)" /Expires:Never P@ssw0rd
-    get-wmiobject -Class Win32_UserAccount -Filter "name='$($NewAccount.User)'"  | swmi -Argument @{PasswordExpires = 0}
-    write-host "net.exe localgroup administrators /add $($NewAccount.User)"
-    net.exe localgroup administrators /add $($NewAccount.User)
+    if ( test-path $env:temp\accounts.txt ) { 
+        $Users = @{ Confirm = $false; UserNames = (type $env:temp\accounts.txt | ? { ! [string]::IsNullOrEmpty( $_ ) }) -split ';' }
+        #XXX TBD del $env:temp\accounts.txt -Force 
 
-    if ( $isServer -or [string]::IsNullOrEmpty($NewAccount.MicrosoftAccount) ) {
-        Write-Host "Enter Password for account $($NewAccount.User) :"
-        net.exe user $($NewAccount.User) *
+        foreach ( $NewAccount in Request-UserNames @Users ) {
+
+            Write-Verbose "Create the account: $($NewAccount.User)"
+            net.exe user /add $($NewAccount.User) /FullName:"$($NewAccount.User)" /Expires:Never P@ssw0rd
+            get-wmiobject -Class Win32_UserAccount -Filter "name='$($NewAccount.User)'"  | swmi -Argument @{PasswordExpires = 0}
+            write-host "net.exe localgroup administrators /add $($NewAccount.User)"
+            net.exe localgroup administrators /add $($NewAccount.User)
+
+            if ( $isServer -or [string]::IsNullOrEmpty($NewAccount.MicrosoftAccount) ) {
+                Write-Host "Enter Password for account $($NewAccount.User) :"
+                net.exe user $($NewAccount.User) *
+            }
+            else {
+                Add-MicrosoftAccountToUser -MicrosoftAccount $NewAccount.MicrosoftAccount -User $NewAccount.User
+            }
+        }
     }
-    else {
-        Add-MicrosoftAccountToUser -MicrosoftAccount $NewAccount.MicrosoftAccount -User $NewAccount.User
-    }
+
 }
 
 #endregion
@@ -280,7 +284,7 @@ Remaining Tasks for this machine:
 * Applications
 * More
 #>
-"@ | Out-File -FilePath $TODO
+"@ -replace "`n","`r`n" | Out-File -FilePath $TODO
 
 icacls.exe "$TODO" /grant "Authenticated Users:(F)" 
 
