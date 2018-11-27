@@ -29,6 +29,7 @@ $Accounts = $null
 $ErrorActionPreference = 'stop'
 [bool] $RestartsRequested = $false
 $isServer = !( gwmi win32_operatingsystem | Where-Object ProductType -eq 1 )
+$isDomainJoined = !(gwmi Win32_ComputerSystem | ? PartOfDomain -ne 'True')
 
 #endregion 
 
@@ -186,7 +187,7 @@ Example:
 "@
 
 $Users = @{}
-if ( -not ( gwmi Win32_ComputerSystem | ? PartOfDomain -EQ 'True' ) ) { 
+if ( -not $isDomainJoined ) { 
 
     if ( test-path $env:temp\accounts.txt ) { 
         $Users = @{ Confirm = $false; UserNames = (type $env:temp\accounts.txt | ? { ! [string]::IsNullOrEmpty( $_ ) }) -split ';' }
@@ -211,13 +212,17 @@ if ( -not ( gwmi Win32_ComputerSystem | ? PartOfDomain -EQ 'True' ) ) {
     }
 
 }
+else {
+
+    $RestartsRequested  = $true
+}
 
 #endregion
 
 #region Secure Local Administrator Account
 #######################################
 
-if ( !$isServer ) {
+if ( !$isServer -and !$isDomainJoined ) {
     Write-Verbose "Remove the local Administrator account if on Workstation..."
     if (  get-localuser |? SID -notmatch '(500|501|503)$' |? Enabled -EQ $True ) {
         Write-Verbose "There is at least one active account. So..."
@@ -243,6 +248,7 @@ Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlo
 #region Enable Remote Services
 #######################################
 
+if ( ! $isDomainJoined )  {
     Write-Verbose "Warning: Some of these services may not be avaiable on WKS until the 1st logon."
 
     set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
@@ -263,6 +269,8 @@ Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlo
     Set-Item wsman:localhost\client\trustedhosts -Value * -force
     winrm  quickconfig -transport:HTTP -force
 
+}
+
 #endregion
 
 #region Remaining Tasks...
@@ -277,7 +285,6 @@ Rename-Computer -NewName Pickett
 
 <# 
 Remaining Tasks for this machine:
-
 
 * Join to a Domain
 * Personal Customizations
