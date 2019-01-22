@@ -1,5 +1,5 @@
 <#
- .SYNOPSIS
+.SYNOPSIS
 Basic Machine Setup
 
 .DESCRIPTION
@@ -21,6 +21,8 @@ param (
     [string[]] $OSFeatures = @("netfx3","Microsoft-Hyper-V")
     )
 
+$verbosePreference = 'continue'
+
 #region Initial Setup
 
 if ( Test-Path 'c:\Pause.txt' ) { exit }
@@ -31,7 +33,7 @@ $ErrorActionPreference = 'stop'
 $isServer = !( gwmi win32_operatingsystem | Where-Object ProductType -eq 1 )
 $isDomainJoined = !(gwmi Win32_ComputerSystem | ? PartOfDomain -ne 'True')
 
-#endregion 
+#endregion
 
 #region Account Support Functions 
 
