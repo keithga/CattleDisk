@@ -234,11 +234,12 @@ if ( !$isServer -or $isDomainJoined )  {
     }
 }
 
-if ($doNotRename )
-if (  get-localuser |? SID -match '500$' |? Enabled -EQ $True ) {
-    # local Administrator account is present *and* active
-    write-host "`n`nchange the administrator password:"
-    net user administrator *
+if ($doNotRename ) {
+    if (  get-localuser |? SID -match '500$' |? Enabled -EQ $True ) {
+        # local Administrator account is present *and* active
+        write-host "`n`nchange the administrator password:"
+        net user administrator *
+    }
 }
 
 Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\' -Name AutoAdminLogon -Value '0'
