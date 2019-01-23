@@ -167,7 +167,7 @@ if ( -not $SkipUpdate ) {
     Install-Module PSWIndowsUpdate -Force
     Import-Module PSWIndowsUpdate 
 
-    $RestartsRequested += !!( Get-WUInstall -MicrosoftUpdate -AcceptAll -IgnoreReboot | ? { $_ -match 'Reboot' } )
+    $RestartsRequested += !!( Get-WUInstall -MicrosoftUpdate -AcceptAll -IgnoreReboot -install | ? { $_ -match 'Reboot' } )
 
 }
 
@@ -224,7 +224,7 @@ else {
 #region Secure Local Administrator Account
 #######################################
 
-if ( !$isServer -and !$isDomainJoined ) {
+if ( !$isServer -or $isDomainJoined )  {
     Write-Verbose "Remove the local Administrator account if on Workstation..."
     if (  get-localuser |? SID -notmatch '(500|501|503)$' |? Enabled -EQ $True ) {
         Write-Verbose "There is at least one active account. So..."
