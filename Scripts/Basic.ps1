@@ -224,14 +224,17 @@ else {
 #region Secure Local Administrator Account
 #######################################
 
+$doNotRename = $False
 if ( !$isServer -or $isDomainJoined )  {
     Write-Verbose "Remove the local Administrator account if on Workstation..."
     if (  get-localuser |? SID -notmatch '(500|501|503)$' |? Enabled -EQ $True ) {
         Write-Verbose "There is at least one active account. So..."
         net user administrator /active:no
+        $doNotRename = $true
     }
 }
 
+if ($doNotRename )
 if (  get-localuser |? SID -match '500$' |? Enabled -EQ $True ) {
     # local Administrator account is present *and* active
     write-host "`n`nchange the administrator password:"
@@ -250,7 +253,7 @@ Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlo
 #region Enable Remote Services
 #######################################
 
-if ( ! $isDomainJoined )  {
+#if ( ! $isDomainJoined )  {
     Write-Verbose "Warning: Some of these services may not be avaiable on WKS until the 1st logon."
 
     set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
@@ -271,7 +274,7 @@ if ( ! $isDomainJoined )  {
     Set-Item wsman:localhost\client\trustedhosts -Value * -force
     winrm  quickconfig -transport:HTTP -force
 
-}
+# }
 
 #endregion
 
