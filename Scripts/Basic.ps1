@@ -227,7 +227,7 @@ else {
 $doNotRename = $False
 if ( !$isServer -or $isDomainJoined )  {
     Write-Verbose "Remove the local Administrator account if on Workstation..."
-    if (  get-localuser |? SID -notmatch '(500|501|503)$' |? Enabled -EQ $True ) {
+    if ( ( get-localuser |? SID -notmatch '(500|501|503)$' |? Enabled -EQ $True ) -or $isDomainJoined ) {
         Write-Verbose "There is at least one active account. So..."
         net user administrator /active:no
         $doNotRename = $true
